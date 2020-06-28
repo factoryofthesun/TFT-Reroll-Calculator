@@ -26,7 +26,7 @@ ui <- navbarPage("TFT Reroll Calculator (10.13)",
         column(2, numericInput("other_out_4", "4", 0, min=0, step=1)),
         column(2, numericInput("other_out_5", "5", 0, min=0, step=1))
       ),
-      h4("Units to Hit"),
+      h4("Units to Hit (Limit 5)"),
       tags$div(id="unitrow_1",
       fluidRow( #TODO: Make numeric options dynamically adjust to other choices (to limit picking out of bounds)
         column(3, selectInput("unitlvl_1", "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
@@ -55,23 +55,30 @@ ui <- navbarPage("TFT Reroll Calculator (10.13)",
 
 server <- function(input, output){
   # ====== Dynamic UI =======
+  # Adapt # units choice range depending on other parameters 
+  
+  
+  # Add unit rows 
   unit_rows <- c("unitrow_1")
   observeEvent(input$addUnitBtn, {
-    row_num <- input$addUnitBtn + 1
-    row_num_id <- paste0("unitrow_", row_num)
-    #print(paste0("#unitrow_", unit_rows[length(unit_rows)]))
-    insertUI(
-      selector= paste0("#", unit_rows[length(unit_rows)]),
-      where="afterEnd",
-      ui= tags$div(id = row_num_id,
-        fluidRow( #TODO: Make numeric options dynamically adjust to other choices (to limit picking out of bounds)
-        column(3, selectInput(paste0("unitlvl_", row_num), "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
-        column(3, numericInput(paste0("base_own_", row_num), "Copies You Own", 0, min=0, step=1)),
-        column(3, numericInput(paste0("others_own_", row_num), "Copies Others Own", 0, min=0, step=1)),
-        column(3, numericInput(paste0("copies_wanted_",row_num), "Total Copies Wanted", 1, min=1, step=1)))
+    # Cap at 5 units for now: matrix calculation gets too slow after that 
+    if (length(unit_rows) < 5){
+      row_num <- input$addUnitBtn + 1
+      row_num_id <- paste0("unitrow_", row_num)
+      insertUI(
+        selector= paste0("#", unit_rows[length(unit_rows)]),
+        where="afterEnd",
+        ui= tags$div(id = row_num_id,
+                     fluidRow( #TODO: Make numeric options dynamically adjust to other choices (to limit picking out of bounds)
+                       column(3, selectInput(paste0("unitlvl_", row_num), "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
+                       column(3, numericInput(paste0("base_own_", row_num), "Copies You Own", 0, min=0, step=1)),
+                       column(3, numericInput(paste0("others_own_", row_num), "Copies Others Own", 0, min=0, step=1)),
+                       column(3, numericInput(paste0("copies_wanted_",row_num), "Total Copies Wanted", 1, min=1, step=1)))
+        )
       )
-    )
-    unit_rows <<- c(unit_rows, row_num_id)
+      unit_rows <<- c(unit_rows, row_num_id)
+    }
+
   })
   
   observeEvent(input$removeUnitBtn, {
@@ -87,17 +94,83 @@ server <- function(input, output){
   # ====== Dynamic base probabilities/pool size =======
   
   # ====== Parameters for Matrix Computation =======
-  lookingFor <- reactive({c(input$copies_wanted_1)})
+  # Include calls to action button clicks so the values update appropriately whenever rows added/deleted
+  lookingFor <- reactive({
+    ret_looking <- c()
+    addbtn <- input$addUnitBtn
+    rembtn <- input$removeUnitBtn
+    for(row_ids in unit_rows){
+      row_num <- sub("unitrow_", "", row_ids)
+      wanted_id <- paste0("copies_wanted_", row_num)
+      wanted_i <- input[[wanted_id]]
+      validate(
+        need(wanted_i, "Please finish filling out the scenario parameters.")
+      )
+      ret_looking <- c(ret_looking, wanted_i)
+    }
+    ret_looking
+  })
+  num_taken <- reactive({
+    ret_num_taken <- c()
+    addbtn <- input$addUnitBtn
+    rembtn <- input$removeUnitBtn
+    for(row_ids in unit_rows){
+      row_num <- sub("unitrow_", "", row_ids)
+      others_own_id <- paste0("others_own_", row_num)
+      others_own_i <- input[[others_own_id]]
+      validate(
+        need(others_own_i, "Please finish filling out the scenario parameters.")
+      )
+      ret_num_taken <- c(ret_num_taken, others_own_i)
+    }
+    ret_num_taken
+  })
+  unit_lvls <- reactive({
+    ret_unit_lvls <- c()
+    addbtn <- input$addUnitBtn
+    rembtn <- input$removeUnitBtn
+    for(row_ids in unit_rows){
+      row_num <- sub("unitrow_", "", row_ids)
+      unit_lvl_id <- paste0("unitlvl_", row_num)
+      unit_lvl_i <- as.numeric(input[[unit_lvl_id]])
+      validate(
+        need(unit_lvl_i, "Please finish filling out the scenario parameters.")
+      )
+      ret_unit_lvls <- c(ret_unit_lvls, unit_lvl_i)
+    }
+    ret_unit_lvls
+  })
+  initial_state <- reactive({
+    ret_initial_state <- ""
+    addbtn <- input$addUnitBtn
+    rembtn <- input$removeUnitBtn
+    for(row_ids in unit_rows){
+      row_num <- sub("unitrow_", "", row_ids)
+      initial_state_id <- paste0("base_own_", row_num)
+      initial_state_i <- input[[initial_state_id]]
+      validate(
+        need(initial_state_i, "Please finish filling out the scenario parameters.")
+      )
+      if(ret_initial_state == ""){
+        ret_initial_state <- as.character(initial_state_i) # No comma for first value 
+      }
+      else{
+        ret_initial_state <- paste(ret_initial_state, initial_state_i, sep=",")
+      }
+    }
+    ret_initial_state
+  })
   ordered_ret <- reactive({getOrderedPermutations(lookingFor(), input$condition)})
   ordered_perms <- reactive({ordered_ret()[[1]]})
   absorb_cutoff <- reactive({ordered_ret()[[2]]})
-  num_taken_other <- reactive({c(input$other_out_1, input$other_out_2, input$other_out_3, input$other_out_4,
-                           input$other_out_5)
-                              })
-  num_taken <- reactive({c(input$others_own_1)})
-  unit_lvls <- reactive({c(as.numeric(input$unitlvl_1))})
-  initial_state <- reactive({paste0(c(input$base_own_1), collapse="")})
-  
+  num_taken_other <- reactive({
+    other_ret <- c(input$other_out_1, input$other_out_2, input$other_out_3, input$other_out_4,
+                   input$other_out_5)
+    validate(
+      need(!anyNA(other_ret), "Please finish filling out the scenario parameters.")
+    )
+    other_ret
+   })
   one_slot_transition_mat <- reactive({
     player_lvl <- as.numeric(input$player_lvl)
     createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl, unit_lvls(), num_taken(), num_taken_other())
