@@ -1,6 +1,7 @@
 rm(list=ls())
 setwd("D:/Code Projects/TFT stats/Reroll_Calculator")
 library(shiny)
+library(shinycssloaders)
 source("tft_reroll_calcs.R")
 
 # APP TO DO
@@ -44,13 +45,13 @@ ui <- navbarPage("TFT Reroll Calculator (10.13)",
         radioButtons("x_by", "X-Axis Value", choices=list("Shops", "Gold"), selected='Shops')
         ),
       mainPanel(
-        plotOutput("plot")
+        withSpinner(plotOutput("plot"))
       )
   ),
   tabPanel("Level or Reroll?",
-           selectInput("placeholder", "placeholder", choices=list("1"=1))),
+           h1("SOON (TM)")),
   tabPanel("Change Pool Size/Probabilities",
-           selectInput("placeholder", "placeholder", choices=list("1"=1)))
+           h1("SOON (TM)"))
 )
 
 server <- function(input, output){
@@ -73,7 +74,7 @@ server <- function(input, output){
                        column(3, selectInput(paste0("unitlvl_", row_num), "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
                        column(3, numericInput(paste0("base_own_", row_num), "Copies You Own", 0, min=0, step=1)),
                        column(3, numericInput(paste0("others_own_", row_num), "Copies Others Own", 0, min=0, step=1)),
-                       column(3, numericInput(paste0("copies_wanted_",row_num), "Total Copies Wanted", 1, min=1, step=1)))
+                       column(3, numericInput(paste0("copies_wanted_",row_num), "Copies Wanted", 1, min=1, step=1)))
         )
       )
       unit_rows <<- c(unit_rows, row_num_id)
@@ -141,7 +142,7 @@ server <- function(input, output){
     ret_unit_lvls
   })
   initial_state <- reactive({
-    ret_initial_state <- ""
+    ret_initial_state <- c()
     addbtn <- input$addUnitBtn
     rembtn <- input$removeUnitBtn
     for(row_ids in unit_rows){
@@ -151,12 +152,7 @@ server <- function(input, output){
       validate(
         need(initial_state_i, "Please finish filling out the scenario parameters.")
       )
-      if(ret_initial_state == ""){
-        ret_initial_state <- as.character(initial_state_i) # No comma for first value 
-      }
-      else{
-        ret_initial_state <- paste(ret_initial_state, initial_state_i, sep=",")
-      }
+      ret_initial_state <- c(ret_initial_state, initial_state_i)
     }
     ret_initial_state
   })
@@ -171,16 +167,34 @@ server <- function(input, output){
     )
     other_ret
    })
-  one_slot_transition_mat <- reactive({
+  error_check <- reactive({ # Error handling function (don't generate matrix until this is passed!)
     player_lvl <- as.numeric(input$player_lvl)
-    createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl, unit_lvls(), num_taken(), num_taken_other())
+    validate_list <- validateScenario(player_lvl, num_taken_other(), unit_lvls(), num_taken(), lookingFor(), initial_state())
+    validate_status <- validate_list[[1]]
+    validate_msg <- validate_list[[2]]
+    validate(
+      need(validate_status, validate_msg)
+    )
+    })
+  one_slot_transition_mat <- reactive({
+    error_check()
+    player_lvl <- as.numeric(input$player_lvl)
+    createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl, unit_lvls(), num_taken(), num_taken_other(), initial_state())
   })
   distribution_data <- reactive({
-    generateDistributionData(one_slot_transition_mat(), absorb_cutoff(), initial_state())
+    error_check()
+    generateDistributionData(one_slot_transition_mat(), absorb_cutoff())
   })
   # ========= Outputs =============
   output$plot <- renderPlot({
-    plotPDF(distribution_data(), input$x_by)
+    distribution <- input$distribution
+    if(distribution == "pdf"){
+      plotPDF(distribution_data(), input$x_by)
+    }
+    else{
+      plotCDF(distribution_data(), input$x_by)
+    }
+    
   })
 }
 

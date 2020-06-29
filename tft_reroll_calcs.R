@@ -36,8 +36,6 @@ ShopProbMat <- matrix(c(1, 0, 0, 0, 0,
 # Current implemented conditions: "any" and "all"
 # To get all absorbing states at the end: start with the base order {(0,0), (0,1), ..., (1,0)} (reversed StarscapeTFT)
 # then take all absorbing permutations and throw them to the end with the same general ordering 
-# Concern: do we care about the unattainable states? e.g. no possible transition steps to the state
-#   - Will just be a row + column of 0s and a single 1 -- idt it changes anything other than extra computation burden
 
 getOrderedPermutations <- function(lookingfor, condition="any"){
   if(!is.numeric(lookingfor)){
@@ -117,9 +115,13 @@ getStatePoolTakenOther <- function(perm_num, unit_lvls, unit_index, num_taken, n
 }
 
 # Generalized function for 1 slot transition matrix 
-createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other){
+# Matrix[0,0] will be the initial state (set by user) 
+createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state){
   mat_dim <- length(ordered_perms)
   one_slot_transition_mat <- matrix(rep(0, mat_dim^2), nrow=mat_dim,ncol=mat_dim)
+  
+  # Adjust num_taken by initial_state 
+  num_taken <- num_taken + initial_state
   
   # Set matrix row and column names 
   row.names(one_slot_transition_mat) <- ordered_perms
@@ -135,23 +137,25 @@ createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_l
   # Loop through string permutations and get list of feasible steps (max 1 step away from any state)
   # Then set probability based on pool size, lvl, and num units out 
   for(perm in ordered_perms[1:absorb_cutoff-1]){
-    perm_num <- as.numeric(unlist(strsplit(perm, ",")))
+    perm_num <- charPermToNumeric(perm)
     
-    # Set of feasible steps is just +1 to any element
-    feasible_mat <- matrix(perm_num, ncol=length(perm_num))
+    # Set of feasible steps is just +1 to any element, within the permutation bounds 
     for(i in 1:length(perm_num)){
       stepi <- perm_num
       stepi[i] <- stepi[i] + 1
-      feasible_mat <- rbind(feasible_mat, stepi)
-      
+
       # Compute probability of step and assign to matrix
       unit_lvl_i <- unit_lvls[i]
       num_taken_i <- num_taken[i]
       num_taken_other_i <- getStatePoolTakenOther(perm_num, unit_lvls, i, num_taken, num_taken_other)
       stepi_char <- paste0(stepi, collapse=",")
-      one_slot_transition_mat[perm, stepi_char] <- getStepTransitionProb(perm_num, stepi, player_lvl, 
-                                                                         unit_lvl_i, num_taken_i, 
-                                                                         num_taken_other_i)
+      
+      # Check if proposed step is within bounds 
+      if (stepi_char %in% colnames(one_slot_transition_mat)){
+        one_slot_transition_mat[perm, stepi_char] <- getStepTransitionProb(perm_num, stepi, player_lvl, 
+                                                                           unit_lvl_i, num_taken_i, 
+                                                                           num_taken_other_i)
+      }
     }
     
     # 0 step is just 1 - sum of all other steps
@@ -181,10 +185,11 @@ getNStepProb <- function(oneslotmat, state1_num, state2_num, N){
 
 # PDF: Prob hit in exactly N slots f(k) = Q^(k-1)R (makes sense: odds of getting to step before then hitting)
 # CDF: Prob hit within N slots F(k) = 1 - Q^k_1_ (Can also be sum of absorbed states for Q^k)
-generateDistributionData <- function(oneslotmat, absorb_cutoff, initial_state){
+generateDistributionData <- function(oneslotmat, absorb_cutoff){
   Q <- oneslotmat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
   T0 <- oneslotmat[1:absorb_cutoff-1,absorb_cutoff:ncol(oneslotmat)]
   cdf_probs <- c()
+  
   # Generate CDFs up until 99%: PDF(k) = CDF(k) - CDF(k-1)
   i <- 1
   cdf_i <- 0
@@ -196,7 +201,7 @@ generateDistributionData <- function(oneslotmat, absorb_cutoff, initial_state){
       }
     }
     cdf_mat <- matrix.power(oneslotmat, i)
-    cdf_i <- sum(cdf_mat[initial_state,absorb_cutoff:ncol(cdf_mat)])
+    cdf_i <- sum(cdf_mat[1,absorb_cutoff:ncol(cdf_mat)])
     cdf_probs <- c(cdf_probs, cdf_i)
     i <- i+1
   }
@@ -215,29 +220,68 @@ generateDistributionData <- function(oneslotmat, absorb_cutoff, initial_state){
 plotPDF <- function(distribution_data, x_by){
   if(x_by == "identity"){ # Plot data as is 
     plt <- ggplot(data=distribution_data, aes(x=Step, y=PDF)) + geom_bar(aes(fill=factor(Perc_Range)), stat="identity", width=1) + 
-      labs(x="Shop Slots", y="Probability of Hitting", title="Probability of Hitting vs # Shop Slots") +
+      labs(x="Shop Slots", y="Probability of Hitting", title="PDF: P(Hit) vs # Shop Slots") +
       scale_x_continuous(breaks=scales::pretty_breaks(n=10)) +
-      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE")) 
+      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"), 
+                        limits=c(0,1,2)) 
     return(plt)
   }
   else if(x_by == "Gold"){
     grouped_dat <- distribution_data[,.(PDF=sum(PDF), Perc_Range=round(mean(Perc_Range))), Step-0:4] # 5 shops every 2 gold 
     grouped_dat$Gold <- 1:nrow(grouped_dat)
     gold_breaks <- pretty(seq(0,tail(grouped_dat$Gold,1)), n=10)
-    gold_labels <- as.character(2*gold_breaks) 
+    gold_labels <- as.character(2*gold_breaks)
     plt <- ggplot(data=grouped_dat, aes(x=Gold, y=PDF)) + geom_bar(aes(fill=factor(Perc_Range)), stat="identity", width=1) + 
-      labs(x="Gold", y="Probability of Hitting", title="Probability of Hitting vs Gold Spent") + 
+      labs(x="Gold", y="Probability of Hitting", title="PDF: P(Hit) vs Gold Spent") + 
       scale_x_continuous(breaks= gold_breaks, labels=gold_labels) + #Hacky way but works for our purposes 
-      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"))
+      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"),
+                        limits=c(0,1,2))
     return(plt)
   }
   else if(x_by == "Shops"){
     grouped_dat <- distribution_data[,.(PDF=sum(PDF), Perc_Range=round(mean(Perc_Range))), Step-0:4] # 5 shops every 2 gold 
     grouped_dat$Shops <- 1:nrow(grouped_dat)
     plt <- ggplot(data=grouped_dat, aes(x=Shops, y=PDF)) + geom_bar(aes(fill=factor(Perc_Range)), stat="identity", width=1) + 
-      labs(x="Shops", y="Probability of Hitting", title="Probability of Hitting vs # Shops") + 
+      labs(x="Shops", y="Probability of Hitting", title="PDF: P(Hit) vs # Shops") + 
       scale_x_continuous(breaks=scales::pretty_breaks(n=10)) + 
-      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"))
+      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"),
+                        limits=c(0,1,2))
+    return(plt)
+  }
+  else {
+    stop(paste("Have not implement by", x_by, "yet!", sep=" "))
+  }
+}
+
+plotCDF <- function(distribution_data, x_by){
+  if(x_by == "identity"){ # Plot data as is 
+    plt <- ggplot(data=distribution_data, aes(x=Step, y=CDF)) + geom_bar(aes(fill=factor(Perc_Range)), stat="identity", width=1) + 
+      labs(x="Shop Slots", y="Probability of Hitting", title="CDF: P(Hit) vs # Shop Slots") +
+      scale_x_continuous(breaks=scales::pretty_breaks(n=10)) +
+      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"), 
+                        limits=c(0,1,2)) 
+    return(plt)
+  }
+  else if(x_by == "Gold"){
+    grouped_dat <- distribution_data[,.(CDF=max(CDF), Perc_Range=round(mean(Perc_Range))), Step-0:4] # 5 shops every 2 gold 
+    grouped_dat$Gold <- 1:nrow(grouped_dat)
+    gold_breaks <- pretty(seq(0,tail(grouped_dat$Gold,1)), n=10)
+    gold_labels <- as.character(2*gold_breaks)
+    plt <- ggplot(data=grouped_dat, aes(x=Gold, y=CDF)) + geom_bar(aes(fill=factor(Perc_Range)), stat="identity", width=1) + 
+      labs(x="Gold", y="Probability of Hitting", title="CDF: P(Hit) vs Gold Spent") + 
+      scale_x_continuous(breaks= gold_breaks, labels=gold_labels) + #Hacky way but works for our purposes 
+      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"),
+                        limits=c(0,1,2))
+    return(plt)
+  }
+  else if(x_by == "Shops"){
+    grouped_dat <- distribution_data[,.(CDF=max(CDF), Perc_Range=round(mean(Perc_Range))), Step-0:4] # 5 shops every 2 gold 
+    grouped_dat$Shops <- 1:nrow(grouped_dat)
+    plt <- ggplot(data=grouped_dat, aes(x=Shops, y=CDF)) + geom_bar(aes(fill=factor(Perc_Range)), stat="identity", width=1) + 
+      labs(x="Shops", y="Probability of Hitting", title="CDF: P(Hit) vs # Shops") + 
+      scale_x_continuous(breaks=scales::pretty_breaks(n=10)) + 
+      scale_fill_manual(name="Percentile Ranges", labels=c("<25%", "25%-75%", ">75%"), values=c("#293352", "#3A75A2", "#3DBFFE"),
+                        limits=c(0,1,2))
     return(plt)
   }
   else {
@@ -251,37 +295,26 @@ plotPDF <- function(distribution_data, x_by){
 validateScenario <- function(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state){
   # Check if unit pool size large enough
   unit_availability_check <- sapply(1:length(unit_lvls), function(x) 
-        (num_taken[x] + lookingfor[x]) < UnitPoolSize[unit_lvls[x]])
+        (num_taken[x] + lookingfor[x] + initial_state[x]) <= UnitPoolSize[unit_lvls[x]])
   if (!all(unit_availability_check)){
     faulty_unit_ind <- which(!unit_availability_check)
     unit_ind_char <- paste0(faulty_unit_ind, collapse = ", ")
     return(list(FALSE, paste("Can't hit copies of units that don't exist! Please adjust the 'Copies Others Own' and", 
-                             "'Total Copies Wanted' fields for units", 
+                             "'Total Copies Wanted' fields for unit(s):", 
                              unit_ind_char)))
   }
   
   # Check if tier pool size large enough 
-  tier_taken <- c(0,0,0,0,0)
+  tier_taken <- num_taken_other
   for (i in 1:length(unit_lvls)){
     unit_lvl <- unit_lvls[i]
-    tier_taken[unit_lvl] <- num_taken_other[i] + num_taken[i] + lookingfor[i]
+    tier_taken[unit_lvl] <- tier_taken[unit_lvl] + num_taken[i] + lookingfor[i] + initial_state[i]
   }
-  tier_pool_check <- sapply(1:length(tier_taken), function(x) tier_taken[i] <= UnitPoolSize[i]*NumUnits[i])
+  tier_pool_check <- sapply(1:length(tier_taken), function(x) tier_taken[x] <= UnitPoolSize[x]*NumUnits[x])
   if (!all(tier_pool_check)){
     faulty_tier <- which(!tier_pool_check)
     tier_char <- paste0(faulty_tier, collapse = ", ")
-    return(list(FALSE, paste("Your scenario involves more units than exist in the tier pools. Please adjust the scenario for tiers", 
-                             tier_char)))
-  }
-  
-  # Check if initial state out of bounds
-  num_state <- as.numeric(unlist(strsplit(initial_state, ",")))
-  state_check <- sapply(1:length(unit_lvls), function(x) num_state[x] <= UnitPoolSize[unit_lvls[x]])
-  if (!all(state_check)){
-    faulty_state <- which(!state_check)
-    state_char <- paste0(faulty_state, collapse = ", ")
-    return(list(FALSE, paste("You are attempting to start off with more copies than exist.",
-                             "Please adjust 'Copies You Own' for units", 
+    return(list(FALSE, paste("Your scenario involves more units than exist in the tier pools. Please adjust the scenario for tier(s):", 
                              tier_char)))
   }
 
@@ -291,30 +324,45 @@ validateScenario <- function(player_lvl, num_taken_other, unit_lvls, num_taken, 
   if (!all(player_lvl_check)){
     fauly_unit_ind <- which(!player_lvl_check)
     faulty_unit <- paste0(fauly_unit_ind, collapse = ", ")
-    return(list(FALSE, paste("Player level too low for units", faulty_unit)))
+    return(list(FALSE, paste("Player level too low to hit unit(s):", faulty_unit)))
   }
+  
+  # Check if total looking for is non-positive 
+  positive_check <- sum(lookingfor) > 0
+  if (!positive_check){
+    return(list(FALSE, paste("Please select a positive number of copies to hit!")))
+  }
+  
+  return(list(TRUE, "passed validation!"))
 
+}
+
+charPermToNumeric <- function(perm){
+  return(as.numeric(unlist(strsplit(perm, ","))))
 }
 # ======================== TESTING =======================
 player_lvl <- 1
-num_taken_other <- c(0,0,0,0,0) # this is ordered by level
-unit_lvls <- c(1,1,1,1)
-num_taken <- c(0,0,0,0)
-lookingfor <- c(1,1,1,1) #2*
-condition <- "any"
-initial_state <- "0,0,0,0"
+num_taken_other <- c(29*12,50,12,1,0) # this is ordered by level
+unit_lvls <- c(5,1,1)
+num_taken <- c(0,0,0)
+lookingfor <- c(2,0,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
+condition <- "all"
+initial_state <- c(0,0,0)
+
+test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state)
+print(test_validate[[2]])
 
 ordered_ret <- getOrderedPermutations(lookingfor, condition)
 ordered_perms <- ordered_ret[[1]]
 absorb_cutoff <- ordered_ret[[2]]
-one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other)
+one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state)
 
 #Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
 #fundamental_mat <- getFundamentalMatrix(Q)
 
 # Test pdf plots
-dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff, initial_state)
-plotPDF(dist_data, x_by="Gold")
+dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff)
+#plotCDF(dist_data, x_by="Shops")
 plotPDF(dist_data, x_by="Shops")
 
 # TODO: Generalized absorbing conditions
