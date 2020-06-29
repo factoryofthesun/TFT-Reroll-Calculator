@@ -1,5 +1,4 @@
 rm(list=ls())
-setwd("D:/Code Projects/TFT stats/Reroll_Calculator")
 library(shiny)
 library(shinycssloaders)
 source("tft_reroll_calcs.R")
@@ -12,7 +11,7 @@ source("tft_reroll_calcs.R")
 # 
 
 # Define UI for app that draws a histogram ----
-ui <- navbarPage("TFT Reroll Calculator (10.13)",
+ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
         column(3, selectInput("condition", "Hit Condition", choices=list("Any"='any', "All"='all'))),

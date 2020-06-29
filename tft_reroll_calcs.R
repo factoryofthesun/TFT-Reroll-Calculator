@@ -341,32 +341,29 @@ charPermToNumeric <- function(perm){
   return(as.numeric(unlist(strsplit(perm, ","))))
 }
 # ======================== TESTING =======================
-player_lvl <- 1
-num_taken_other <- c(29*12,50,12,1,0) # this is ordered by level
-unit_lvls <- c(5,1,1)
-num_taken <- c(0,0,0)
-lookingfor <- c(2,0,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
-condition <- "all"
-initial_state <- c(0,0,0)
-
-test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state)
-print(test_validate[[2]])
-
-ordered_ret <- getOrderedPermutations(lookingfor, condition)
-ordered_perms <- ordered_ret[[1]]
-absorb_cutoff <- ordered_ret[[2]]
-one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state)
-
-#Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
-#fundamental_mat <- getFundamentalMatrix(Q)
-
-# Test pdf plots
-dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff)
-#plotCDF(dist_data, x_by="Shops")
-plotPDF(dist_data, x_by="Shops")
-
-# TODO: Generalized absorbing conditions
-#        - reorder indices at the end to adapt to any absorbing conditions requested (e.g. any 2, all, any 1, etc)
+# player_lvl <- 1
+# num_taken_other <- c(29*12,50,12,1,0) # this is ordered by level
+# unit_lvls <- c(5,1,1)
+# num_taken <- c(0,0,0)
+# lookingfor <- c(2,0,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
+# condition <- "all"
+# initial_state <- c(0,0,0)
+# 
+# test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state)
+# print(test_validate[[2]])
+# 
+# ordered_ret <- getOrderedPermutations(lookingfor, condition)
+# ordered_perms <- ordered_ret[[1]]
+# absorb_cutoff <- ordered_ret[[2]]
+# one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state)
+# 
+# #Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
+# #fundamental_mat <- getFundamentalMatrix(Q)
+# 
+# # Test pdf plots
+# dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff)
+# #plotCDF(dist_data, x_by="Shops")
+# plotPDF(dist_data, x_by="Shops")
 
 # ====================TODO: FEATURES =======================
 # Level or Roll?
