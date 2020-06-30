@@ -14,8 +14,8 @@ source("tft_reroll_calcs.R")
 ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
-        column(3, selectInput("condition", "Hit Condition", choices=list("Any"='any', "All"='all'))),
-        column(3, selectInput("player_lvl", "Player Level", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5,
+        column(2, selectInput("condition", "Hit Condition", choices=list("Any"='any', "All"='all'))),
+        column(2, selectInput("player_lvl", "Player Level", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5,
                                                               "6"=6, "7"=7, "8"=8, "9"=9)))
       ),
       h4("# Other Units out of Tier Pools"),
@@ -29,13 +29,13 @@ ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
       h4("Units to Hit (Limit 5)"),
       tags$div(id="unitrow_1",
       fluidRow( #TODO: Make numeric options dynamically adjust to other choices (to limit picking out of bounds)
-        column(3, selectInput("unitlvl_1", "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
-        column(3, numericInput("base_own_1", "Copies You Own", 0, min=0, step=1)),
-        column(3, numericInput("others_own_1", "Copies Others Own", 0, min=0, step=1)),
-        column(3, numericInput("copies_wanted_1", "Total Copies Wanted", 1, min=1, step=1)))
+        column(2, selectInput("unitlvl_1", "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
+        column(2, numericInput("base_own_1", "Copies You Own", 0, min=0, step=1)),
+        column(2, numericInput("others_own_1", "Copies Others Own", 0, min=0, step=1)),
+        column(2, numericInput("copies_wanted_1", "Copies Looking For", 1, min=1, step=1)))
       ),
-      fluidRow(column(1, offset=9, actionButton('addUnitBtn', "Add Unit")),
-               column(1, style='padding-left:20px', actionButton('removeUnitBtn', "Remove Unit")))
+      fluidRow(column(1, offset=6, actionButton('addUnitBtn', "Add Unit", style='width:90%'), style='padding:0px'),
+               column(1, actionButton('removeUnitBtn', "Remove Unit", style='width:90%'), style='padding:0px'))
   ),
   tabPanel("Plot",
       sidebarPanel(
@@ -70,10 +70,10 @@ server <- function(input, output){
         where="afterEnd",
         ui= tags$div(id = row_num_id,
                      fluidRow( #TODO: Make numeric options dynamically adjust to other choices (to limit picking out of bounds)
-                       column(3, selectInput(paste0("unitlvl_", row_num), "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
-                       column(3, numericInput(paste0("base_own_", row_num), "Copies You Own", 0, min=0, step=1)),
-                       column(3, numericInput(paste0("others_own_", row_num), "Copies Others Own", 0, min=0, step=1)),
-                       column(3, numericInput(paste0("copies_wanted_",row_num), "Copies Wanted", 1, min=1, step=1)))
+                       column(2, selectInput(paste0("unitlvl_", row_num), "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
+                       column(2, numericInput(paste0("base_own_", row_num), "Copies You Own", 0, min=0, step=1)),
+                       column(2, numericInput(paste0("others_own_", row_num), "Copies Others Own", 0, min=0, step=1)),
+                       column(2, numericInput(paste0("copies_wanted_",row_num), "Copies Wanted", 1, min=1, step=1)))
         )
       )
       unit_rows <<- c(unit_rows, row_num_id)
