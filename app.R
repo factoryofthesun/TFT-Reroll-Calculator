@@ -48,7 +48,18 @@ ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
       )
   ),
   tabPanel("Level or Reroll?",
-           h1("SOON (TM)")),
+           sidebarPanel(
+             tags$b(textOutput('lvl_str')),
+             br(),
+             tags$b(textOutput('hit_str')),
+             htmlOutput("scenario_descrip"),
+             br(),
+             fluidRow(column(1, tags$b(div("Exp: ", style='padding-top:5px')), style='padding-right:0px'), column(2, uiOutput("exp"), style='padding:0px'),
+                      column(1, div(textOutput("totalExp"), style='padding-top:7px'), style='padding:0px')
+           )),
+           mainPanel(
+             withSpinner(htmlOutput("lvlOrReroll"))
+           )),
   tabPanel("Change Pool Size/Probabilities",
            h1("SOON (TM)"))
 )
@@ -91,8 +102,6 @@ server <- function(input, output){
     }
     
   })
-  # ====== Dynamic base probabilities/pool size =======
-  
   # ====== Parameters for Matrix Computation =======
   # Include calls to action button clicks so the values update appropriately whenever rows added/deleted
   lookingFor <- reactive({
@@ -184,7 +193,10 @@ server <- function(input, output){
     error_check()
     generateDistributionData(one_slot_transition_mat(), absorb_cutoff())
   })
+  # ====== Dynamic base probabilities/pool size =======
+  
   # ========= Outputs =============
+  # Plot panel 
   output$plot <- renderPlot({
     distribution <- input$distribution
     if(distribution == "pdf"){
@@ -195,6 +207,80 @@ server <- function(input, output){
     }
     
   })
+  
+  # Level or Reroll 
+  output$lvl_str <- renderText({
+    paste("Player level:", input$player_lvl)
+  })
+  
+  output$hit_str <- renderText({
+    paste("Looking to hit", input$condition, "of:")
+  })
+  
+  output$scenario_descrip <- renderUI({
+    scenario_str <- c()
+    # Loop through units and generate new line for each one 
+    for (i in 1:length(unit_lvls())){
+      tier <- unit_lvls()[i]
+      looking <- lookingFor()[i]
+      taken <- num_taken()[i]
+      init <- initial_state()[i]
+      num_tot <- UnitPoolSize[tier] 
+      remaining <- num_tot - taken - init
+      unit_str <- paste0(looking,"/",remaining, " remaining copies of a tier ", tier)
+      scenario_str <- c(scenario_str, unit_str)
+    }
+    HTML(paste(scenario_str, collapse="<br/>"))
+  })
+  
+  output$exp <- renderUI({
+    tot_exp <- getExpToLevel(as.numeric(input$player_lvl))
+    numericInput('init_exp', label=NULL, 0, min=0, max=tot_exp, step=1, width="100%")
+  })
+    
+  output$totalExp <- renderText({
+    tot_exp <- getExpToLevel(as.numeric(input$player_lvl))
+    paste0("/", tot_exp)
+  })
+  
+  output$lvlOrReroll <- renderUI({
+    # Analysis is useless at level 1 or 9
+    if (input$player_lvl == '1'){
+      HTML("You can't roll at level 1!")
+    }
+    else if(input$player_lvl == '9'){
+      HTML("9 is the highest level! Just donkey roll.") 
+    }
+    else{
+      exp <- input$init_exp
+      tot_exp <- getExpToLevel(as.numeric(input$player_lvl))
+      validate(
+        need(exp >= 0 & exp < tot_exp, "Please enter valid starting exp.")
+      )
+    no_lvl_shops <- getExpectedShopsToHit(one_slot_transition_mat(), absorb_cutoff()) # Expected shops without leveling
+    no_lvl_gold <- no_lvl_shops*2
+    no_lvl_str <- paste0("The expected cost of rolling without leveling is ", no_lvl_gold, ".")
+    
+    # Need to generate slot matrix for one level above 
+    player_lvl_up <- as.numeric(input$player_lvl) + 1
+    oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), initial_state())
+    lvl_shops <- getExpectedShopsToHit(oneslotmat_up, absorb_cutoff())
+    lvl_gold <- lvl_shops*2
+    gold_to_lvl <- ceiling((tot_exp-exp)/4)*4 # 4 gold for 4 exp 
+    tot_lvl_gold <- lvl_gold + gold_to_lvl
+    lvl_str <- paste0("The expected cost of leveling and then rolling is ", tot_lvl_gold, ".")
+    
+    if (no_lvl_gold < tot_lvl_gold){
+      res_str <- "The gold-efficient strategy is to roll at your current level."
+    }
+    else{
+      res_str <- "The gold-efficient strategy is to level then roll."
+    }
+    HTML(paste(c(no_lvl_str, lvl_str, res_str), collapse="<br/>"))
+      
+    }
+  })
+  
 }
 
 options(shiny.reactlog=T)

@@ -29,6 +29,7 @@ ShopProbMat <- matrix(c(1, 0, 0, 0, 0,
                         .14, .2, .35, .25, .06, 
                         .1, .15, .3, .3, .15), 
                       nrow=9, ncol=5, byrow=T)
+ExpToLevel <- c(0, 2, 6, 10, 20, 32, 50, 66, 0)
 
 # ================ DEFINE HELPER FUNCTIONS ===============
 
@@ -340,6 +341,20 @@ validateScenario <- function(player_lvl, num_taken_other, unit_lvls, num_taken, 
 charPermToNumeric <- function(perm){
   return(as.numeric(unlist(strsplit(perm, ","))))
 }
+
+getExpToLevel <- function(lvl){
+  return(ExpToLevel[lvl])
+}
+
+# Use fundamental matrix to get the expected number of shops before hitting 
+getExpectedShopsToHit <- function(oneslotmat, absorb_cutoff){
+  q <- oneslotmat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
+  fundamental_mat <- getFundamentalMatrix(q)
+  expected_slots <- sum(fundamental_mat[1,]) + 1 
+  expected_shops <- round(expected_slots/5)
+  return(expected_shops)
+}
+
 # ======================== TESTING =======================
 # player_lvl <- 1
 # num_taken_other <- c(29*12,50,12,1,0) # this is ordered by level
