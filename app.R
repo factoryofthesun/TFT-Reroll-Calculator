@@ -1,6 +1,7 @@
 rm(list=ls())
 library(shiny)
 library(shinycssloaders)
+library(plotly)
 source("tft_reroll_calcs.R")
 
 # APP TO DO
