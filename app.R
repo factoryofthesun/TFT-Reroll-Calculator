@@ -1,3 +1,5 @@
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
 rm(list=ls())
 library(shiny)
 library(shinycssloaders)
@@ -15,7 +17,7 @@ source("tft_reroll_calcs.R")
 ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
-        column(2, selectInput("condition", "Hit Condition", choices=list("Any"='any', "All"='all'))),
+        column(2, uiOutput("condition_choices")),
         column(2, selectInput("player_lvl", "Player Level", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5,
                                                               "6"=6, "7"=7, "8"=8, "9"=9)))
       ),
@@ -67,9 +69,6 @@ ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
 
 server <- function(input, output){
   # ====== Dynamic UI =======
-  # Adapt # units choice range depending on other parameters 
-  
-  
   # Add unit rows 
   unit_rows <- c("unitrow_1")
   observeEvent(input$addUnitBtn, {
@@ -103,6 +102,26 @@ server <- function(input, output){
     }
     
   })
+  
+  # Alter condition options based on # units 
+  output$condition_choices <- renderUI({
+    # Set dependencies 
+    row_num <- input$addUnitBtn
+    row_neg <- input$removeUnitBtn
+    
+    conditions <- c("all", "any")
+    names <- c("All", "Any")
+    if (length(unit_rows) > 2){ # Any 2, ..., Any N-1
+      conditions_add <- sapply(2:(length(unit_rows)-1), function(x) paste("any", x))
+      conditions <- c(conditions, conditions_add)
+      
+      names_add <- sapply(2:(length(unit_rows)-1), function(x) paste("Any", x))
+      names <- c(names, names_add)
+    }
+    conditions <- setNames(as.list(conditions), names)
+    selectInput("condition", "Hit Condition", choices=conditions)
+  })
+  
   # ====== Parameters for Matrix Computation =======
   # Include calls to action button clicks so the values update appropriately whenever rows added/deleted
   lookingFor <- reactive({

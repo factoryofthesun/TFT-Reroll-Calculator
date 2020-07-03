@@ -54,6 +54,10 @@ getOrderedPermutations <- function(lookingfor, condition="any"){
   else if(condition == "all"){
     absorb_inds <- apply(perms_df, 1, function(x) all(x == lookingfor))
   }
+  else if(grepl("any", condition, fixed=T)){ # any "n" hit condition
+    num <- as.numeric(trimws(sub("any ", "", condition, fixed=T)))
+    absorb_inds <- apply(perms_df, 1, function(x) sum(x == lookingfor) >= num)
+  }
   else{ stop("This termination condition has not been implemented yet!") }
   
   
@@ -318,6 +322,21 @@ validateScenario <- function(player_lvl, num_taken_other, unit_lvls, num_taken, 
     return(list(FALSE, paste("Your scenario involves more units than exist in the tier pools. Please adjust the scenario for tier(s):", 
                              tier_char)))
   }
+  
+  # All unique units being looked for are excluded from the num_taken_other count 
+  other_taken <- num_taken_other 
+  for (i in 1:length(unit_lvls)){
+    unit_lvl <- unit_lvls[i]
+    other_taken[unit_lvl] <- other_taken[unit_lvl] + UnitPoolSize[unit_lvl]
+  }
+  other_taken_check <- sapply(1:length(other_taken), function(x) other_taken[x] <= UnitPoolSize[x]*NumUnits[x])
+  if (!all(other_taken_check)){
+    faulty_tier <- which(!other_taken_check)
+    tier_char <- paste0(faulty_tier, collapse = ", ")
+    return(list(FALSE, paste("You currently have too many units taken out of the pool,",
+                             "given the number of units you are looking for, for tier(s):", 
+                             tier_char)))
+  }
 
   # Check if player level adequate for unit level
   available_unit_lvls <- which(ShopProbMat[player_lvl,] > 0)
@@ -356,11 +375,11 @@ getExpectedShopsToHit <- function(oneslotmat, absorb_cutoff){
 }
 
 # ======================== TESTING =======================
-# player_lvl <- 1
-# num_taken_other <- c(29*12,50,12,1,0) # this is ordered by level
-# unit_lvls <- c(5,1,1)
+# player_lvl <- 5
+# num_taken_other <- c(29*11,50,12,1,0) # this is ordered by level
+# unit_lvls <- c(1,3,4)
 # num_taken <- c(0,0,0)
-# lookingfor <- c(2,0,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
+# lookingfor <- c(2,1,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
 # condition <- "all"
 # initial_state <- c(0,0,0)
 # 
