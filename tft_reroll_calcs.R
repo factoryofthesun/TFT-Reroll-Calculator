@@ -17,8 +17,12 @@ library(RColorBrewer)
 
 # ================ SET POOL STATS FOR CURRENT PATCH ==============
 
-UnitPoolSize <- c(29, 22, 18, 12, 10)
-NumUnits <- c(13, 13, 13, 10, 8)
+UnitPoolSize <- as.matrix(c(29, 22, 18, 12, 10))
+colnames(UnitPoolSize) <- "Unit Copies Per Tier"
+rownames(UnitPoolSize) <- 1:5
+NumUnits <- as.matrix(c(13, 13, 13, 10, 8))
+rownames(NumUnits) <- 1:5
+colnames(NumUnits) <- "Unique Units Per Tier"
 ShopProbMat <- matrix(c(1, 0, 0, 0, 0, 
                         1, 0, 0, 0, 0, 
                         .75, .25, 0, 0, 0, 
@@ -28,7 +32,7 @@ ShopProbMat <- matrix(c(1, 0, 0, 0, 0,
                         .19, .3, .35, .15, .01, 
                         .14, .2, .35, .25, .06, 
                         .1, .15, .3, .3, .15), 
-                      nrow=9, ncol=5, byrow=T)
+                      nrow=9, ncol=5, byrow=T, dimnames=list(1:9, 1:5))
 ExpToLevel <- c(0, 2, 6, 10, 20, 32, 50, 66, 0)
 
 # ================ DEFINE HELPER FUNCTIONS ===============
@@ -72,7 +76,8 @@ getOrderedPermutations <- function(lookingfor, condition="any"){
 }
 
 # Define function for computing transition probability 
-getStepTransitionProb <- function(base_state, step_state, player_lvl, unit_lvl, num_taken_unit, num_taken_other_unit){
+getStepTransitionProb <- function(base_state, step_state, player_lvl, unit_lvl, num_taken_unit, num_taken_other_unit, 
+                                  ShopProbMat, UnitPoolSize, NumUnits){
   state_diff <- step_state - base_state
   # If step size 0, return error (0 step is 1-sum(all steps))
   if(sum(state_diff) == 0){
@@ -121,7 +126,8 @@ getStatePoolTakenOther <- function(perm_num, unit_lvls, unit_index, num_taken, n
 
 # Generalized function for 1 slot transition matrix 
 # Matrix[0,0] will be the initial state (set by user) 
-createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state){
+createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state,
+                                ShopProbMat, UnitPoolSize, NumUnits){
   mat_dim <- length(ordered_perms)
   one_slot_transition_mat <- matrix(rep(0, mat_dim^2), nrow=mat_dim,ncol=mat_dim)
   
@@ -159,7 +165,8 @@ createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_l
       if (stepi_char %in% colnames(one_slot_transition_mat)){
         one_slot_transition_mat[perm, stepi_char] <- getStepTransitionProb(perm_num, stepi, player_lvl, 
                                                                            unit_lvl_i, num_taken_i, 
-                                                                           num_taken_other_i)
+                                                                           num_taken_other_i, ShopProbMat, 
+                                                                           UnitPoolSize, NumUnits)
       }
     }
     
@@ -297,7 +304,36 @@ plotCDF <- function(distribution_data, x_by){
 # Function to check any possible nonsense with the requested scenario
 # Output: list(TRUE/FALSE, error message)
 
-validateScenario <- function(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state){
+validateScenario <- function(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state,
+                             ShopProbMat, UnitPoolSize, NumUnits){
+  # == Validate base data first == 
+  # Check if base data completely filled out 
+  if (any(is.na(ShopProbMat)) | any(is.na(UnitPoolSize)) | any(is.na(NumUnits))){
+    return(list(FALSE, "Please finish filling out the pool size and reroll probabilities!"))
+  }
+  
+  # Reroll probabilities must be non-negative
+  if (any(ShopProbMat < 0)){
+    return(list(FALSE, "Reroll probabilities must be non-negative!"))
+  }
+  
+  # Reroll probabilities must sum to 1 per level 
+  if (!(all(rowSums(ShopProbMat) == 1))){
+    faulty_reroll_rows <- which(rowSums(ShopProbMat) != 1)
+    faulty_reroll_char <- paste0(faulty_reroll_rows, collapse=", ")
+    return(list(FALSE, paste("Reroll probabilities must sum to 1. Please adjust for level(s):", faulty_reroll_char)))
+  }
+  
+  # Unit pool size must be positive 
+  if (any(UnitPoolSize <= 0)){
+    return(list(FALSE, "Unit pool sizes must all be positive!"))
+  }
+  
+  # Num units must be positive 
+  if (any(NumUnits <= 0)){
+    return(list(FALSE, "Number of units must all be positive!"))
+  }
+  
   # Check if unit pool size large enough
   unit_availability_check <- sapply(1:length(unit_lvls), function(x) 
         (num_taken[x] + lookingfor[x] + initial_state[x]) <= UnitPoolSize[unit_lvls[x]])
@@ -361,39 +397,49 @@ charPermToNumeric <- function(perm){
   return(as.numeric(unlist(strsplit(perm, ","))))
 }
 
-getExpToLevel <- function(lvl){
+getExpToLevel <- function(lvl, ExpToLevel){
   return(ExpToLevel[lvl])
 }
 
 # Use fundamental matrix to get the expected number of shops before hitting 
 getExpectedShopsToHit <- function(oneslotmat, absorb_cutoff){
   q <- oneslotmat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
-  fundamental_mat <- getFundamentalMatrix(q)
-  expected_slots <- sum(fundamental_mat[1,]) + 1 
-  expected_shops <- round(expected_slots/5)
+  # Check if q is scalar
+  if (length(q) == 1){
+    expected_slots <- 1/(1-q)
+    expected_shops <- round(expected_slots/5)
+  }
+  else{
+    fundamental_mat <- getFundamentalMatrix(q)
+    expected_slots <- sum(fundamental_mat[1,]) + 1 
+    expected_shops <- round(expected_slots/5)
+  }
+  
   return(expected_shops)
 }
 
 # ======================== TESTING =======================
-# player_lvl <- 5
-# num_taken_other <- c(29*11,50,12,1,0) # this is ordered by level
-# unit_lvls <- c(1,3,4)
-# num_taken <- c(0,0,0)
-# lookingfor <- c(2,1,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
+# player_lvl <- 6
+# num_taken_other <- c(0,0,0,0,0) # this is ordered by level
+# unit_lvls <- c(4)
+# num_taken <- c(0)
+# lookingfor <- c(1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
 # condition <- "all"
-# initial_state <- c(0,0,0)
+# initial_state <- c(0)
 # 
-# test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state)
+# test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state,
+#                                   ShopProbMat, UnitPoolSize, NumUnits)
 # print(test_validate[[2]])
 # 
 # ordered_ret <- getOrderedPermutations(lookingfor, condition)
 # ordered_perms <- ordered_ret[[1]]
 # absorb_cutoff <- ordered_ret[[2]]
-# one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state)
+# one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state,
+#                                                ShopProbMat, UnitPoolSize, NumUnits)
 # 
-# #Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
-# #fundamental_mat <- getFundamentalMatrix(Q)
-# 
+# Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
+# fundamental_mat <- getExpectedShopsToHit(one_slot_transition_mat, absorb_cutoff)
+ 
 # # Test pdf plots
 # dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff)
 # #plotCDF(dist_data, x_by="Shops")

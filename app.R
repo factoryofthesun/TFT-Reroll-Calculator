@@ -1,19 +1,10 @@
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-
 rm(list=ls())
 library(shiny)
 library(shinycssloaders)
 library(plotly)
+library(shinyMatrix)
 source("tft_reroll_calcs.R")
 
-# APP TO DO
-#   - Baseline calculator: probability of hitting "all" or "any" for arbitrary # of units (we'll cap at 5 for now), 
-#       with options to show plots of shops or gold  (just show all for now)
-#   - Level or Roll: compares expected gold expenditure for condition whether you level or roll to determine better option
-#   - Alter pool size and reroll probabilities 
-# 
-
-# Define UI for app that draws a histogram ----
 ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
@@ -64,7 +55,11 @@ ui <- navbarPage("TFT Reroll Calculator (10.13) by HARVEST GOLEM",
              withSpinner(htmlOutput("lvlOrReroll"))
            )),
   tabPanel("Change Pool Size/Probabilities",
-           h1("SOON (TM)"))
+           column(12, tags$b("Reroll Probabilities"), align="center"),
+           matrixInput("reroll_probs", value=ShopProbMat, rows=list(names=TRUE), cols=list(names=TRUE), class="numeric"),
+           fluidRow(column(6, matrixInput("num_units", value=NumUnits, cols=list(names=T), rows=list(names=T), class="numeric")),
+           column(6, matrixInput("pool_size", value=UnitPoolSize, cols=list(names=T), rows=list(names=T), class="numeric")))
+           )
 )
 
 server <- function(input, output){
@@ -197,7 +192,8 @@ server <- function(input, output){
    })
   error_check <- reactive({ # Error handling function (don't generate matrix until this is passed!)
     player_lvl <- as.numeric(input$player_lvl)
-    validate_list <- validateScenario(player_lvl, num_taken_other(), unit_lvls(), num_taken(), lookingFor(), initial_state())
+    validate_list <- validateScenario(player_lvl, num_taken_other(), unit_lvls(), num_taken(), lookingFor(), initial_state(),
+                                      reroll_probs(), pool_size(), num_units())
     validate_status <- validate_list[[1]]
     validate_msg <- validate_list[[2]]
     validate(
@@ -207,13 +203,38 @@ server <- function(input, output){
   one_slot_transition_mat <- reactive({
     error_check()
     player_lvl <- as.numeric(input$player_lvl)
-    createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl, unit_lvls(), num_taken(), num_taken_other(), initial_state())
+    createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl, unit_lvls(), num_taken(), num_taken_other(), 
+                        initial_state(), reroll_probs(), pool_size(), num_units())
   })
   distribution_data <- reactive({
     error_check()
     generateDistributionData(one_slot_transition_mat(), absorb_cutoff())
   })
   # ====== Dynamic base probabilities/pool size =======
+  og_prob_data <- ShopProbMat # Save original copies of everything so we can reset 
+  og_num_units <- NumUnits
+  og_unit_pool_size <- UnitPoolSize
+  
+  # Make sure nothing is left blank
+  reroll_probs <- reactive({
+    validate(
+      need(!anyNA(input$reroll_probs), "Please finish filling out reroll probabilities.")
+    )
+    input$reroll_probs
+  })
+  num_units <- reactive({
+    validate(
+      need(!anyNA(input$num_units), "Please finish filling out the unit tier count.")
+    )
+    input$num_units
+  })
+  pool_size <- reactive({
+    validate(
+      need(!anyNA(input$pool_size), "Please finish filling out the pool size.")
+    )
+    input$pool_size
+  })
+  
   
   # ========= Outputs =============
   # Plot panel 
@@ -254,12 +275,12 @@ server <- function(input, output){
   })
   
   output$exp <- renderUI({
-    tot_exp <- getExpToLevel(as.numeric(input$player_lvl))
+    tot_exp <- getExpToLevel(as.numeric(input$player_lvl), ExpToLevel)
     numericInput('init_exp', label=NULL, 0, min=0, max=tot_exp, step=1, width="100%")
   })
     
   output$totalExp <- renderText({
-    tot_exp <- getExpToLevel(as.numeric(input$player_lvl))
+    tot_exp <- getExpToLevel(as.numeric(input$player_lvl), ExpToLevel)
     paste0("/", tot_exp)
   })
   
@@ -273,7 +294,7 @@ server <- function(input, output){
     }
     else{
       exp <- input$init_exp
-      tot_exp <- getExpToLevel(as.numeric(input$player_lvl))
+      tot_exp <- getExpToLevel(as.numeric(input$player_lvl), ExpToLevel)
       validate(
         need(exp >= 0 & exp < tot_exp, "Please enter valid starting exp.")
       )
@@ -283,7 +304,8 @@ server <- function(input, output){
     
     # Need to generate slot matrix for one level above 
     player_lvl_up <- as.numeric(input$player_lvl) + 1
-    oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), initial_state())
+    oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), initial_state(),
+                                         reroll_probs(), pool_size(), num_units())
     lvl_shops <- getExpectedShopsToHit(oneslotmat_up, absorb_cutoff())
     lvl_gold <- lvl_shops*2
     gold_to_lvl <- ceiling((tot_exp-exp)/4)*4 # 4 gold for 4 exp 
