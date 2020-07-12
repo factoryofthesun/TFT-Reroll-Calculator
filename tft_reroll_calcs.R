@@ -125,7 +125,7 @@ getStatePoolTakenOther <- function(perm_num, unit_lvls, unit_index, num_taken, n
 }
 
 # Generalized function for 1 slot transition matrix 
-# Matrix[0,0] will be the initial state (set by user) 
+# Matrix[0,0] will represent the initial state (set by user) 
 createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state,
                                 ShopProbMat, UnitPoolSize, NumUnits){
   mat_dim <- length(ordered_perms)
@@ -199,7 +199,7 @@ getNStepProb <- function(oneslotmat, state1_num, state2_num, N){
 # CDF: Prob hit within N slots F(k) = 1 - Q^k_1_ (Can also be sum of absorbed states for Q^k)
 generateDistributionData <- function(oneslotmat, absorb_cutoff){
   Q <- oneslotmat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
-  T0 <- oneslotmat[1:absorb_cutoff-1,absorb_cutoff:ncol(oneslotmat)]
+  T0 <- oneslotmat[1:absorb_cutoff-1,absorb_cutoff:ncol(oneslotmat)] # 1-step probs to absorption 
   cdf_probs <- c()
   
   # Generate CDFs up until 99%: PDF(k) = CDF(k) - CDF(k-1)
