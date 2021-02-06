@@ -1,0 +1,13 @@
+name: TFT-Reroll-Calculator
+title: TFT-Reroll-Calculator
+username:
+account: harvestgolem
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2517740
+bundleId: 3383760
+url: https://harvestgolem.shinyapps.io/TFT-Reroll-Calculator/
+when: 1594594856.95545
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: example_app.R|starscapeTFT_calc_example.py

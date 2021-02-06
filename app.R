@@ -5,7 +5,7 @@ library(plotly)
 library(shinyMatrix)
 source("tft_reroll_calcs.R")
 
-ui <- navbarPage("TFT Reroll Calculator (10.14) by HARVEST GOLEM",
+ui <- navbarPage("TFT Reroll Calculator (11.3) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
         column(2, uiOutput("condition_choices")),

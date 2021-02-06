@@ -419,31 +419,31 @@ getExpectedShopsToHit <- function(oneslotmat, absorb_cutoff){
 }
 
 # ======================== TESTING =======================
-# player_lvl <- 6
-# num_taken_other <- c(0,0,0,0,0) # this is ordered by level
-# unit_lvls <- c(4)
-# num_taken <- c(0)
-# lookingfor <- c(1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
-# condition <- "all"
-# initial_state <- c(0)
-# 
-# test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state,
-#                                   ShopProbMat, UnitPoolSize, NumUnits)
-# print(test_validate[[2]])
-# 
-# ordered_ret <- getOrderedPermutations(lookingfor, condition)
-# ordered_perms <- ordered_ret[[1]]
-# absorb_cutoff <- ordered_ret[[2]]
-# one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state,
-#                                                ShopProbMat, UnitPoolSize, NumUnits)
-# 
+player_lvl <- 4
+num_taken_other <- c(0,0,0,0,0) # this is ordered by level
+unit_lvls <- c(1,1,1)
+num_taken <- c(6,6,6)
+lookingfor <- c(6,6,6) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
+condition <- "all"
+initial_state <- c(3,3,3)
+
+test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state,
+                                  ShopProbMat, UnitPoolSize, NumUnits)
+print(test_validate[[2]])
+
+ordered_ret <- getOrderedPermutations(lookingfor, condition)
+ordered_perms <- ordered_ret[[1]]
+absorb_cutoff <- ordered_ret[[2]]
+ one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state,
+                                               ShopProbMat, UnitPoolSize, NumUnits)
+
 # Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
 # fundamental_mat <- getExpectedShopsToHit(one_slot_transition_mat, absorb_cutoff)
- 
-# # Test pdf plots
-# dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff)
-# #plotCDF(dist_data, x_by="Shops")
-# plotPDF(dist_data, x_by="Shops")
+
+# Test pdf plots
+dist_data <- generateDistributionData(one_slot_transition_mat, absorb_cutoff)
+plotCDF(dist_data, x_by="Shops")
+plotPDF(dist_data, x_by="Shops")
 
 # ====================TODO: FEATURES =======================
 # Level or Roll?
