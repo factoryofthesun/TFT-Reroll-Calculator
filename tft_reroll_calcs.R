@@ -16,7 +16,7 @@ library(matrixcalc)
 library(RColorBrewer)
 
 # ================ SET POOL STATS FOR CURRENT PATCH ==============
-ChosenProb <- 0.33 
+ChosenProb <- 0.5 
 ChosenCum <- 0.05 # Additional prob of seeing chosen for every shop where you don't see one 
 UnitPoolSize <- as.matrix(c(29, 22, 18, 12, 10))
 colnames(UnitPoolSize) <- "Unit Copies Per Tier"
@@ -38,7 +38,7 @@ ShopProbMat <- matrix(c(1, 0, 0, 0, 0,
 ChosenProbMat <- matrix(c(1, 0, 0, 0, 0, 
                           1, 0, 0, 0, 0, 
                           1, 0, 0, 0, 0, 
-                          .6, .4, 0, 0, 0, 
+                          .8, .2, 0, 0, 0, 
                           .4, .55, .05, 0, 0, 
                           0, .6, .4, 0, 0, 
                           0, .4, .55, .05, 0,

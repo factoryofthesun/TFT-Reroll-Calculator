@@ -3,7 +3,6 @@ library(shiny)
 library(shinycssloaders)
 library(plotly)
 library(shinyMatrix)
-setwd("~/Documents/Programming/TFT-Reroll-Calculator")
 source("tft_reroll_calcs.R")
 
 ui <- navbarPage("TFT Reroll Calculator (11.3) by HARVEST GOLEM",
