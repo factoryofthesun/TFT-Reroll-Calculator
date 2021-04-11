@@ -393,8 +393,8 @@ server <- function(input, output, session){
       lvl_shops <- getChosenExpectedShopsToHit(initial_state(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), 
                                                   chosen_probs(), pool_size(), num_units(), chosen_prob()) # Expected shops without leveling
     } else{
-      oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), initial_state(),
-                                           reroll_probs(), pool_size(), num_units())
+      oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), 
+                                           initial_state(), reroll_probs(), chosen_probs(), pool_size(), num_units(), num_chosen())
       lvl_shops <- getExpectedShopsToHit(oneslotmat_up, absorb_cutoff())
     }
     lvl_gold <- lvl_shops*2
