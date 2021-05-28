@@ -6,7 +6,7 @@ library(shinyMatrix)
 setwd("D:/Code Projects/TFT stats/Reroll_Calculator")
 source("tft_reroll_calcs.R")
 
-ui <- navbarPage("TFT Reroll Calculator (Set 5) by HARVEST GOLEM",
+ui <- navbarPage("TFT Reroll Calculator (11.11) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
         column(2, uiOutput("condition_choices")),
