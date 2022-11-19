@@ -3,10 +3,9 @@ library(shiny)
 library(shinycssloaders)
 library(plotly)
 library(shinyMatrix)
-setwd("D:/Code Projects/TFT stats/Reroll_Calculator")
 source("tft_reroll_calcs.R")
 
-ui <- navbarPage("TFT Reroll Calculator (11.11) by HARVEST GOLEM",
+ui <- navbarPage("TFT Reroll Calculator (Set 8) by HARVEST GOLEM",
   tabPanel("Scenario Parameters",
       fluidRow(
         column(2, uiOutput("condition_choices")),
@@ -22,16 +21,12 @@ ui <- navbarPage("TFT Reroll Calculator (11.11) by HARVEST GOLEM",
         column(2, numericInput("other_out_5", "5", 0, min=0, step=1))
       ),
       h4("Units to Hit (Limit 5)"),
-      conditionalPanel("input.condition == 'chosen'",
-        div("Note: The 'Chosen' condition computes the odds of hitting a chosen of any of the units below. 
-            In this case only first 3 fields need to be filled out.", style="color:red")),
       tags$div(id="unitrow_1",
               fluidRow( #TODO: Make numeric options dynamically adjust to other choices (to limit picking out of bounds)
                 column(2, selectInput("unitlvl_1", "Unit Tier", choices=list("1"=1, "2"=2, "3"=3, "4"=4, "5"=5))),
                 column(2, numericInput("base_own_1", "Copies You Own", 0, min=0, step=1)),
                 column(2, numericInput("others_own_1", "Copies Others Own", 0, min=0, step=1)),
                 column(2, numericInput("copies_wanted_1", "Copies Looking For", 1, min=1, step=1)),
-                #column(2, div(style="margin-top:20px", checkboxInput("chosen_1", "Take Chosen", value = F)))
               )
       ),
       fluidRow(column(1, offset=6, actionButton('addUnitBtn', "Add Unit", style='width:90%'), style='padding:0px'),
@@ -63,11 +58,8 @@ ui <- navbarPage("TFT Reroll Calculator (11.11) by HARVEST GOLEM",
   tabPanel("Change Pool Size/Probabilities",
            column(12, tags$b("Reroll Probabilities"), align="center"),
            matrixInput("reroll_probs", value=ShopProbMat, rows=list(names=TRUE), cols=list(names=TRUE), class="numeric"),
-           #column(12, tags$b("Chosen Probabilities"), align="center"),
-           #matrixInput("chosen_probs", value=ChosenProbMat, rows=list(names=TRUE), cols=list(names=TRUE), class="numeric"),
            fluidRow(column(6, matrixInput("num_units", value=NumUnits, cols=list(names=T), rows=list(names=T), class="numeric")),
            column(6, matrixInput("pool_size", value=UnitPoolSize, cols=list(names=T), rows=list(names=T), class="numeric"))),
-           #fluidRow(column(2, numericInput("chosen_prob", label = "P(Chosen)", value=ChosenProb, min=0, max=1, step=0.01))),
            fluidRow(column(1, actionButton('resetBtn', "Reset", style='width:90%'), style='padding:0px'))
            )
 )
@@ -90,7 +82,6 @@ server <- function(input, output, session){
                        column(2, numericInput(paste0("base_own_", row_num), "Copies You Own", 0, min=0, step=1)),
                        column(2, numericInput(paste0("others_own_", row_num), "Copies Others Own", 0, min=0, step=1)),
                        column(2, numericInput(paste0("copies_wanted_", row_num), "Copies Looking For", 1, min=1, step=1)),
-                       #column(2, div(style="margin-top:20px",checkboxInput(paste0("chosen_", row_num), "Take Chosen", value = F)))
                        ))
       )
       unit_rows <<- c(unit_rows, row_num_id)
@@ -113,9 +104,7 @@ server <- function(input, output, session){
     # Set dependencies 
     row_num <- input$addUnitBtn
     row_neg <- input$removeUnitBtn
-    
-    # conditions <- c("chosen", "all", "any")
-    # names <- c("Chosen", "All", "Any")
+
     conditions <- c("all", "any")
     names <- c("All", "Any")
     if (length(unit_rows) > 2){ # Any 2, ..., Any N-1
@@ -127,11 +116,6 @@ server <- function(input, output, session){
     }
     conditions <- setNames(as.list(conditions), names)
     selectInput("condition", "Hit Condition", choices=conditions)
-  })
-  
-  # Partially hide some of the fluidrow columns if "chosen" scenario is selected
-  output$chosen_selected <- reactive({
-    input$condition == "chosen"
   })
   
   # ====== Parameters for Matrix Computation =======
@@ -196,23 +180,8 @@ server <- function(input, output, session){
     }
     ret_initial_state
   })
-  # num_chosen <- reactive({
-  #   num_chosen <- 0
-  #   addbtn <- input$addUnitBtn
-  #   rembtn <- input$removeUnitBtn
-  #   for(row_ids in unit_rows){
-  #     row_num <- sub("unitrow_", "", row_ids)
-  #     chosen_id <- paste0("chosen_", row_num)
-  #     chosen_i <- input[[chosen_id]]
-  #     validate(
-  #       need(is.logical(chosen_i), "Please finish filling out the scenario parameters.")
-  #     )
-  #     num_chosen <- num_chosen + chosen_i
-  #   }
-  #   num_chosen
-  # })
-  num_chosen <- reactive({0})
-  ordered_ret <- reactive({getOrderedPermutations(lookingFor(), input$condition, num_chosen())})
+  
+  ordered_ret <- reactive({getOrderedPermutations(lookingFor(), input$condition)})
   ordered_perms <- reactive({ordered_ret()[[1]]})
   absorb_cutoff <- reactive({ordered_ret()[[2]]})
   num_taken_other <- reactive({
@@ -225,13 +194,8 @@ server <- function(input, output, session){
   })
   error_check <- reactive({ # Error handling function (don't generate matrix until this is passed!)
     player_lvl <- as.numeric(input$player_lvl)
-    if (input$condition == "chosen"){
-      validate_list <- validateChosenScenario(player_lvl, num_taken_other(), unit_lvls(), num_taken(), initial_state(),
-                                              chosen_probs(), pool_size(), num_units(), num_chosen())
-    } else{
-      validate_list <- validateScenario(player_lvl, num_taken_other(), unit_lvls(), num_taken(), lookingFor(), initial_state(),
-                                        reroll_probs(), chosen_probs(), pool_size(), num_units(), num_chosen())
-    }
+    validate_list <- validateScenario(player_lvl, num_taken_other(), unit_lvls(), num_taken(), lookingFor(), initial_state(),
+                                      reroll_probs(), pool_size(), num_units())
     validate_status <- validate_list[[1]]
     validate_msg <- validate_list[[2]]
     validate(
@@ -242,25 +206,18 @@ server <- function(input, output, session){
     error_check()
     player_lvl <- as.numeric(input$player_lvl)
     createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl, unit_lvls(), num_taken(), num_taken_other(), 
-                        initial_state(), reroll_probs(), chosen_probs(), pool_size(), num_units(), num_chosen())
+                        initial_state(), reroll_probs(), pool_size(), num_units())
   })
   distribution_data <- reactive({
     error_check()
     player_lvl <- as.numeric(input$player_lvl)
-    if (input$condition == "chosen"){
-      generateChosenDistributionData(initial_state(), player_lvl, unit_lvls(), num_taken(), num_taken_other(), 
-                                     chosen_probs(), pool_size(), num_units(), chosen_prob())
-    } else{
-      generateDistributionData(one_slot_transition_mat(), absorb_cutoff())
-    }
+    generateDistributionData(one_slot_transition_mat(), absorb_cutoff())
   })
   # ====== Dynamic base probabilities/pool size =======
   og_prob_data <- ShopProbMat # Save original copies of everything so we can reset 
-  og_chosen_data <- ChosenProbMat
   og_num_units <- NumUnits
   og_unit_pool_size <- UnitPoolSize
-  og_chosen_prob <- ChosenProb
-  
+
   # Make sure nothing is left blank
   reroll_probs <- reactive({
     validate(
@@ -268,13 +225,6 @@ server <- function(input, output, session){
     )
     input$reroll_probs
   })
-  # chosen_probs <- reactive({
-  #   validate(
-  #     need(!anyNA(input$chosen_probs), "Please finish filling out chosen probabilities.")
-  #   )
-  #   input$chosen_probs
-  # })
-  chosen_probs <- reactive({ChosenProbMat})
   num_units <- reactive({
     validate(
       need(!anyNA(input$num_units), "Please finish filling out the unit tier count.")
@@ -287,20 +237,12 @@ server <- function(input, output, session){
     )
     input$pool_size
   })
-  # chosen_prob <- reactive({
-  #   validate(
-  #     need(!anyNA(input$chosen_prob), "Please finish filling out the base chosen probability.")
-  #   )
-  #   input$chosen_prob
-  # })
   
   # Reset input values if pressed 
   observeEvent(input$resetBtn, {
     updateMatrixInput(session, "reroll_probs", og_prob_data)
-    # updateMatrixInput(session, "chosen_probs", og_chosen_data)    
     updateMatrixInput(session, "num_units", og_num_units)    
     updateMatrixInput(session, "pool_size", og_unit_pool_size)    
-    # updateNumericInput(session, "chosen_prob", value = og_chosen_prob)    
   })
   
   # ========= Outputs =============
@@ -322,37 +264,19 @@ server <- function(input, output, session){
   })
   
   output$hit_str <- renderText({
-    if (input$condition == "chosen"){
-      "Looking to hit any of:"
-    } else{
-      paste("Looking to hit", input$condition, "of:")
-    }
+    paste("Looking to hit", input$condition, "of:")
   })
   output$scenario_descrip <- renderUI({
-      chosen_counts <- list()
-      # Loop through units and compile counts of chosen to hit
-      if (input$condition == "chosen"){
-        for (i in 1:length(unit_lvls())){
-          tier <- as.character(unit_lvls()[i])
-          if (!(tier %in% names(chosen_counts))){
-            chosen_counts[[tier]] <- 1
-          } else{
-            chosen_counts[[tier]] <- chosen_counts[[tier]] + 1
-          }
-        }
-        scenario_str <- paste0(chosen_counts, " different ", names(chosen_counts), "-cost", " chosen.")
-      }else{
-        scenario_str <- c()
-        for (i in 1:length(unit_lvls())){
-          tier <- unit_lvls()[i]
-          looking <- lookingFor()[i]
-          taken <- num_taken()[i]
-          init <- initial_state()[i]
-          num_tot <- UnitPoolSize[tier] 
-          remaining <- num_tot - taken - init
-          unit_str <- paste0(looking,"/",remaining, " remaining copies of a tier ", tier)
-          scenario_str <- c(scenario_str, unit_str)
-        }
+      scenario_str <- c()
+      for (i in 1:length(unit_lvls())){
+        tier <- unit_lvls()[i]
+        looking <- lookingFor()[i]
+        taken <- num_taken()[i]
+        init <- initial_state()[i]
+        num_tot <- UnitPoolSize[tier] 
+        remaining <- num_tot - taken - init
+        unit_str <- paste0(looking,"/",remaining, " remaining copies of a tier ", tier)
+        scenario_str <- c(scenario_str, unit_str)
       }
       HTML(paste(scenario_str, collapse="<br/>"))
     })
@@ -381,27 +305,15 @@ server <- function(input, output, session){
       validate(
         need(exp >= 0 & exp < tot_exp, "Please enter valid starting exp.")
       )
-    if (input$condition == "chosen"){
-      player_lvl <- as.integer(input$player_lvl)
-      no_lvl_shops <- getChosenExpectedShopsToHit(initial_state(), player_lvl, unit_lvls(), num_taken(), num_taken_other(), 
-                                                  chosen_probs(), pool_size(), num_units(), chosen_prob()) # Expected shops without leveling
-      
-    } else{
-      no_lvl_shops <- getExpectedShopsToHit(one_slot_transition_mat(), absorb_cutoff()) # Expected shops without leveling
-    }
+    no_lvl_shops <- getExpectedShopsToHit(one_slot_transition_mat(), absorb_cutoff()) # Expected shops without leveling
     no_lvl_gold <- no_lvl_shops*2
     no_lvl_str <- paste0("The expected cost of rolling without leveling is ", no_lvl_gold, ".")
     
     # Need to generate slot matrix for one level above 
     player_lvl_up <- as.numeric(input$player_lvl) + 1
-    if (input$condition == "chosen"){
-      lvl_shops <- getChosenExpectedShopsToHit(initial_state(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), 
-                                                  chosen_probs(), pool_size(), num_units(), chosen_prob()) # Expected shops without leveling
-    } else{
-      oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), 
-                                           initial_state(), reroll_probs(), chosen_probs(), pool_size(), num_units(), num_chosen())
-      lvl_shops <- getExpectedShopsToHit(oneslotmat_up, absorb_cutoff())
-    }
+    oneslotmat_up <- createOneSlotMatrix(ordered_perms(), absorb_cutoff(), player_lvl_up, unit_lvls(), num_taken(), num_taken_other(), 
+                                           initial_state(), reroll_probs(), pool_size(), num_units())
+    lvl_shops <- getExpectedShopsToHit(oneslotmat_up, absorb_cutoff())
     lvl_gold <- lvl_shops*2
     gold_to_lvl <- ceiling((tot_exp-exp)/4)*4 # 4 gold for 4 exp 
     tot_lvl_gold <- lvl_gold + gold_to_lvl
