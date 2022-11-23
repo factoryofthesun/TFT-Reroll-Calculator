@@ -2,7 +2,7 @@
 
 Published [here](https://harvestgolem.shinyapps.io/TFT-Reroll-Calculator/).
 
-Last updated for patch: 11.3 
+Last updated for Set 8 PBE 
 
 A generalized calculator that computes the probability of hitting a certain # of units under any given game state in TFT. 
 The following functionalities have been implemented:
