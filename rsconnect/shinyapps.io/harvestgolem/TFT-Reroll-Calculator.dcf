@@ -5,9 +5,9 @@ account: harvestgolem
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2517740
-bundleId: 4485581
+bundleId: 6560271
 url: https://harvestgolem.shinyapps.io/TFT-Reroll-Calculator/
-when: 1618725667.87059
+when: 1669590432.1639
+lastSyncTime: 1669590432.16391
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: example_app.R|starscapeTFT_calc_example.py

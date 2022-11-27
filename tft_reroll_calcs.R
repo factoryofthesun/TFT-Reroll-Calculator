@@ -53,16 +53,22 @@ getOrderedPermutations <- function(lookingfor, condition="any"){
   
   # Absorbing vector conditions 
   if(condition == "any"){
-    absorb_inds <- apply(perms_df[, 1:(ncol(perms_df)-1)], 1, function(x) any(x >= lookingfor))
+    absorb_inds <- apply(perms_df[, 1:ncol(perms_df)], 1, function(x) any(x >= lookingfor))
   }
   else if(condition == "all"){
-    absorb_inds <- apply(perms_df[, 1:(ncol(perms_df)-1)], 1, function(x) all(x >= lookingfor))
+    absorb_inds <- apply(perms_df[, 1:ncol(perms_df)], 1, function(x) all(x >= lookingfor))
   }
   else if(grepl("any", condition, fixed=T)){ # any "n" hit condition
     num <- as.numeric(trimws(sub("any ", "", condition, fixed=T)))
-    absorb_inds <- apply(perms_df[, 1:(ncol(perms_df)-1)], 1, function(x) sum(x >= lookingfor) >= num)
+    absorb_inds <- apply(perms_df[, 1:ncol(perms_df)], 1, function(x) sum(x >= lookingfor) >= num)
   }
   else{ stop("This termination condition has not been implemented yet!") }
+  
+  # print(perms_df)
+  # print(absorb_inds) 
+  # print(lookingfor)
+  # print(perms_df[!absorb_inds,,drop=F])
+  # stop()
   
   # Move absorbing rows to the end 
   perms_df_ordered <- rbind(perms_df[!absorb_inds,,drop=F], perms_df[absorb_inds,,drop=F]) # Drop=F against 1-col edge case
@@ -141,6 +147,7 @@ createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_l
   
   # Fill out probabilities one section at a time 
   # Absorbed states: identity matrix 
+  
   for(i in absorb_cutoff:nrow(one_slot_transition_mat)){
     one_slot_transition_mat[i,i] <- 1
   }
@@ -152,27 +159,30 @@ createOneSlotMatrix <- function(ordered_perms, absorb_cutoff, player_lvl, unit_l
     perm_num <- charPermToNumeric(perm)
     
     # Set of feasible steps is just +1 to any element, within the permutation bounds 
-    for(i in 1:(length(perm_num) - 1)){
+    for(i in 1:length(perm_num)){
       # Edge case: perm num is length 1
       if(i < 1){
         next 
       }
+
       stepi <- perm_num
       stepi[i] <- stepi[i] + 1
+      stepi_char <- paste0(stepi, collapse=",")
       
+      if (!(stepi_char %in% colnames(one_slot_transition_mat))){
+        next 
+      }
+        
       # Compute probability of step and assign to matrix
       unit_lvl_i <- unit_lvls[i]
       num_taken_i <- num_taken[i]
       num_taken_other_i <- getStatePoolTakenOther(perm_num, unit_lvls, i, num_taken, num_taken_other)
-      stepi_char <- paste0(stepi, collapse=",")
       
       # Check if proposed step is within bounds 
-      if (stepi_char %in% colnames(one_slot_transition_mat)){
-        one_slot_transition_mat[perm, stepi_char] <- getStepTransitionProb(perm_num, stepi, player_lvl, 
-                                                                           unit_lvl_i, num_taken_i, 
-                                                                           num_taken_other_i, ShopProbMat, 
-                                                                           UnitPoolSize, NumUnits)
-      }
+      one_slot_transition_mat[perm, stepi_char] <- getStepTransitionProb(perm_num, stepi, player_lvl, 
+                                                                         unit_lvl_i, num_taken_i, 
+                                                                         num_taken_other_i, ShopProbMat, 
+                                                                         UnitPoolSize, NumUnits)
     }
     
     # 0 step is just 1 - sum of all other steps
@@ -431,17 +441,16 @@ getExpectedShopsToHit <- function(oneslotmat, absorb_cutoff){
 # lookingfor <- c(1,1,1) # THIS IS NOW LOOKING FOR ON TOP OF INITIAL STATE INSTEAD OF TOTAL
 # condition <- "all"
 # initial_state <- c(3,3,3)
-# chosen <- 2
 # 
 # test_validate <- validateScenario(player_lvl, num_taken_other, unit_lvls, num_taken, lookingfor, initial_state,
-#                                   ShopProbMat, ChosenProbMat, UnitPoolSize, NumUnits, chosen)
+#                                   ShopProbMat, UnitPoolSize, NumUnits)
 # print(test_validate[[2]])
 # 
-# ordered_ret <- getOrderedPermutations(lookingfor, condition, chosen)
+# ordered_ret <- getOrderedPermutations(lookingfor, condition)
 # ordered_perms <- ordered_ret[[1]]
 # absorb_cutoff <- ordered_ret[[2]]
 # one_slot_transition_mat <- createOneSlotMatrix(ordered_perms, absorb_cutoff, player_lvl, unit_lvls, num_taken, num_taken_other, initial_state,
-#                                                ShopProbMat, ChosenProbMat, UnitPoolSize, NumUnits, chosen)
+#                                                ShopProbMat, UnitPoolSize, NumUnits)
 # 
 # # Q <- one_slot_transition_mat[1:absorb_cutoff-1, 1:absorb_cutoff-1]
 # n_shops <- getExpectedShopsToHit(one_slot_transition_mat, absorb_cutoff)
